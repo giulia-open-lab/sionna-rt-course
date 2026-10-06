@@ -9,9 +9,18 @@ Teaching material for an MSc course in Radio Propagation: an instructor demo not
   students may see.
 - `instructor/` is a separate PRIVATE repo `giulia-open-lab/sionna-rt-course-instructor`
   (solutions, course design, prompts). It has its own `.git` and is listed in `.gitignore`.
-  Run git there with `git -C instructor ...`.
-- Before every commit in the public repo, check `git diff --cached --name-only`: no solutions,
-  no model answers, no course design, nothing from `instructor/`.
+  Read its state with `git -C instructor ...`.
+- Put anything that reveals solutions, model answers or the course design under `instructor/`,
+  never in the public part.
+
+## Git: never commit or push
+
+- NEVER commit and NEVER push, in either repository. The professor does all Git operations.
+- Do not run Git commands that change the repositories (add, commit, push, pull, merge, rebase,
+  reset, restore, checkout, stash, tag, branch). Read-only commands are fine: status, diff, log,
+  ls-files, check-ignore.
+- Never add `Co-Authored-By` or other AI attribution lines anywhere, including suggested commit
+  messages.
 
 ## Sionna
 

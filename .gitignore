@@ -1,0 +1,23 @@
+# Private instructor repo (giulia-open-lab/sionna-rt-course-instructor), cloned here.
+# It must NEVER be committed to this public repo.
+instructor/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Local Claude Code settings
+.claude/settings.local.json
+
+# OS / editors
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/

@@ -13,3 +13,7 @@ Open teaching material on ray tracing for radio propagation with
 | `notebooks/02_lab_student.ipynb` | 2-hour hands-on lab for students |
 
 The notebooks will run on Google Colab (with or without a GPU) and on the lab computers.
+
+## License
+
+[MIT](LICENSE)

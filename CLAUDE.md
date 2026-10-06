@@ -13,14 +13,17 @@ Teaching material for an MSc course in Radio Propagation: an instructor demo not
 - Put anything that reveals solutions, model answers or the course design under `instructor/`,
   never in the public part.
 
-## Git: never commit or push
+## Git: commit or push only when asked
 
-- NEVER commit and NEVER push, in either repository. The professor does all Git operations.
-- Do not run Git commands that change the repositories (add, commit, push, pull, merge, rebase,
-  reset, restore, checkout, stash, tag, branch). Read-only commands are fine: status, diff, log,
-  ls-files, check-ignore.
-- Never add `Co-Authored-By` or other AI attribution lines anywhere, including suggested commit
-  messages.
+- Commit or push only when the professor explicitly asks, and only the changes they name, in
+  either repository. Otherwise the professor does all Git operations.
+- Other Git commands that change the repositories (add, pull, merge, rebase, reset, restore,
+  checkout, stash, tag, branch) also need an explicit request. Read-only commands are always
+  fine: status, diff, log, ls-files, check-ignore.
+- Never add `Co-Authored-By` or any other AI attribution anywhere, including commit messages and
+  suggested commit messages.
+- Commit messages (including suggested ones) must never mention Claude, Claude Code or AI, not
+  even the file name `CLAUDE.md`: call it "project guidelines".
 
 ## Sionna
 

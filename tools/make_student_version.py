@@ -17,10 +17,12 @@ Markers used in the solutions notebook (compatible with nbgrader, which only loo
       raise NotImplementedError("Ex N.M not completed yet: <what to do>")
 * markdown cells: a block from "<!-- BEGIN SOLUTION [label] -->" to "<!-- END SOLUTION -->"
   becomes "**Your answer:** _write here_";
-* a markdown cell whose first line is "<!-- INSTRUCTOR ONLY -->" is removed.
+* a markdown cell whose first line is "<!-- INSTRUCTOR ONLY -->", or a code cell whose first line
+  starts with "# INSTRUCTOR ONLY" (e.g. the guided runs of the solutions), is removed.
 
-All outputs and execution counts are removed and an "Open in Colab" badge is added at the top.
-Only the Python standard library is used.
+All outputs and execution counts are removed, the cell metadata is removed except the display
+options "cellView" (Colab) and "jupyter" (e.g. a collapsed code cell in JupyterLab), and an
+"Open in Colab" badge is added at the top. Only the Python standard library is used.
 """
 import argparse
 import json
@@ -42,9 +44,11 @@ CODE_BEGIN = re.compile(r"^(?P<indent>[ \t]*)### BEGIN SOLUTION \[(?P<label>Ex \
 CODE_END = re.compile(r"^[ \t]*### END SOLUTION\s*$")
 MD_BEGIN = re.compile(r"^<!-- BEGIN SOLUTION \[[^\]]+\] -->$")
 MD_END = "<!-- END SOLUTION -->"
-INSTRUCTOR_ONLY = "<!-- INSTRUCTOR ONLY -->"
+INSTRUCTOR_ONLY = {"markdown": "<!-- INSTRUCTOR ONLY -->", "code": "# INSTRUCTOR ONLY"}
 ANSWER_PLACEHOLDER = "**Your answer:** _write here_"
-FORBIDDEN = ("BEGIN SOLUTION", "END SOLUTION", INSTRUCTOR_ONLY)
+KEEP_METADATA = ("cellView", "jupyter")   # display options only (e.g. a collapsed code cell)
+# Never in the student version: solution markers, and any trace of the private checks
+FORBIDDEN = ("BEGIN SOLUTION", "END SOLUTION", "INSTRUCTOR ONLY", "lab_checks", "check_ex", "_REF")
 
 
 def cell_source(cell):
@@ -108,13 +112,15 @@ def make_student_notebook(nb):
     cells, gaps, answers, removed = [], [], 0, 0
     for index, cell in enumerate(nb["cells"]):
         source, where = cell_source(cell), f"cell {index}"
-        new = {"cell_type": cell["cell_type"], "metadata": {}}
+        new = {"cell_type": cell["cell_type"],
+               "metadata": {k: v for k, v in cell.get("metadata", {}).items() if k in KEEP_METADATA}}
         if "id" in cell:
             new["id"] = cell["id"]
+        marker = INSTRUCTOR_ONLY.get(cell["cell_type"])
+        if marker and source.lstrip().startswith(marker):
+            removed += 1
+            continue
         if cell["cell_type"] == "markdown":
-            if source.lstrip().startswith(INSTRUCTOR_ONLY):
-                removed += 1
-                continue
             text, n = convert_markdown(source, where)
             answers += n
         elif cell["cell_type"] == "code":

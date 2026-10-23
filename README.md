@@ -4,14 +4,17 @@ Open teaching material on ray tracing for radio propagation with
 [Sionna RT](https://nvlabs.github.io/sionna/rt/), developed for the MSc course *Radio
 Propagation*. It explains what a ray tracer for radio propagation is, validates it against the
 theory students know (Friis, the two-ray model with Fresnel coefficients), and uses it to study
-multipath, delay spread, coherence bandwidth and coverage.
+multipath, delay spread, coherence bandwidth and coverage. In the lab, students explore these
+topics by changing the parameters of ready-made experiments (frequency, antennas, materials,
+positions, number of interactions and of rays) and explaining what they observe: no programming
+is required.
 
 ## Contents
 
 | Notebook | Description | Open |
 |---|---|---|
 | [`notebooks/01_instructor_demo.ipynb`](notebooks/01_instructor_demo.ipynb) | Lecture demo (about 60 min, run live by the instructor; saved with outputs) | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/giulia-open-lab/sionna-rt-course/blob/main/notebooks/01_instructor_demo.ipynb) |
-| [`notebooks/02_lab_student.ipynb`](notebooks/02_lab_student.ipynb) | Hands-on lab (2 hours, alone or in pairs, after the lecture) | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/giulia-open-lab/sionna-rt-course/blob/main/notebooks/02_lab_student.ipynb) |
+| [`notebooks/02_lab_student.ipynb`](notebooks/02_lab_student.ipynb) | Hands-on exploration lab (2 hours, alone or in pairs, after the lecture) | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/giulia-open-lab/sionna-rt-course/blob/main/notebooks/02_lab_student.ipynb) |
 
 The notebooks use `sionna-rt` 2.2.0 (with Mitsuba 3.9.1 and Dr.Jit 1.5.0). They run on a GPU or,
 more slowly, on a CPU. They use only the scenes that ship with Sionna RT or that are built in the
@@ -25,7 +28,8 @@ code, so no extra download is needed.
    280 MB) and **restarts the runtime**, as the official Sionna tutorials do. This is expected:
    when Colab says the session has restarted, **run the setup cell again**.
 4. The setup cell prints the versions and the Mitsuba variant: `cuda_ad_mono_polarized` (GPU) or
-   `llvm_ad_mono_polarized` (CPU). Then run the cells in order.
+   `llvm_ad_mono_polarized` (CPU). In the lab it also downloads `lab_helpers.py` from this
+   repository. Then run the cells in order.
 
 To keep your work on Colab, save a copy in your Drive (*File → Save a copy in Drive*) or download
 the `.ipynb` file (*File → Download → Download .ipynb*).
@@ -46,7 +50,8 @@ python -m ipykernel install --user --name sionna-rt-course --display-name "Pytho
 
 Then open the notebook in Jupyter (or VS Code) and select the kernel **Python
 (sionna-rt-course)**. If Jupyter is not installed on the computer, also run
-`pip install jupyterlab` in the environment and start it with `jupyter lab`.
+`pip install jupyterlab` in the environment and start it with `jupyter lab`. The lab notebook
+imports `notebooks/lab_helpers.py`: keep the two files in the same folder.
 
 ### Note for the lab administrators: LLVM for the CPU
 
@@ -70,9 +75,10 @@ includes the compilation of its kernels):
 | Notebook | GPU (NVIDIA RTX A6000) | CPU, 2 threads (as on Colab without GPU) |
 |---|---|---|
 | Lecture demo, whole notebook | about 1 min | about 5 min (slowest cell about 50 s) |
-| Lab, all exercises completed | about 25 s | about 1.5 min (slowest cell about 20 s) |
+| Lab, every experiment once with its default values | about 15 s | about 35 s (slowest cell about 10 s) |
 
-These measurements were made on a workstation. Colab itself (T4 GPU or 2 vCPUs) was not measured
+In the lab, each further run of an experiment takes from about one second to about 10 s on the
+CPU. These measurements were made on a workstation. Colab itself (T4 GPU or 2 vCPUs) was not measured
 and is slower than this workstation, so expect longer times there (see the manual Colab checklist
 below).
 
@@ -87,10 +93,15 @@ below).
 - **LLVM error on a CPU-only machine:** see *Note for the lab administrators* above.
 - **Numbers slightly different from a classmate's or from the saved outputs:** ray tracing with
   a finite number of rays is not bit-for-bit reproducible. The GPU and CPU variants can also find
-  slightly different sets of weak diffracted paths (up to a few tenths of a dB in some cases). The
-  automatic checks of the lab use tolerances that cover this.
-- **A cell in the lab stops with `NotImplementedError: Ex N.M not completed yet`:** that part is
-  still a `TODO`: complete it and run the cell again.
+  slightly different sets of weak diffracted paths (up to a few tenths of a dB in some cases).
+  These small differences do not change the trends that the lab asks you to explain.
+- **A lab experiment stops with an error such as `Invalid ITU material type`:** a parameter has a
+  value that is not allowed; the comment next to each parameter lists the possible values.
+- **`No module named 'lab_helpers'`:** open the lab from the `notebooks` folder of the cloned
+  repository, where `lab_helpers.py` is; on Colab, run the setup cell first (it downloads it).
+- **The log of a lab exercise starts again from run 1:** restarting the kernel clears the logs.
+  The logs already printed under the experiment cells stay in the notebook until you run those
+  cells again, so do not restart the kernel before saving.
 
 ## Manual Colab checklist (for instructors)
 
@@ -103,9 +114,8 @@ These steps could not be run automatically and should be done once on Colab befo
    with no LLVM error.
 3. Demo: *Runtime → Run all*. Expect no error, and note the slowest cells: they should take less
    than 60 s on the T4 and less than 3 min on the CPU.
-4. Lab (student version): *Runtime → Run all*. Only the `TODO` cells should stop, with
-   `NotImplementedError: Ex N.M not completed yet`, and the check cells should print
-   *"Exercise N.M not completed yet"*.
+4. Lab (student version): *Runtime → Run all*. No cell should fail: every experiment runs once
+   with its default values.
 
 ## Repository structure
 
@@ -113,6 +123,7 @@ These steps could not be run automatically and should be done once on Colab befo
 README.md, LICENSE, requirements.txt
 notebooks/01_instructor_demo.ipynb   lecture demo, with outputs
 notebooks/02_lab_student.ipynb       lab, student version (no outputs), generated by the script
+notebooks/lab_helpers.py             helpers of the lab (scenes, receivers, logs), imported by it
 tools/make_student_version.py        generates the student version from the solutions notebook
 ```
 

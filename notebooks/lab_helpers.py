@@ -47,7 +47,7 @@ def sweep_axis(ax, name, values, ylabel):
     numeric = all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in values)
     if not numeric:
         ax.set_xticks(range(len(values)), [str(v) for v in values], rotation=15)
-    elif name in ("NUM_RAYS", "CELL_SIZE", "SIGNAL_BANDWIDTH_MHZ", "COHERENCE_BANDWIDTH_MHZ"):
+    elif name in ("NUM_RAYS", "PIXEL_SIZE", "SIGNAL_BANDWIDTH_MHZ", "COHERENCE_BANDWIDTH_MHZ"):
         ax.set_xscale("log")
     ax.set(xlabel=name, ylabel=ylabel)
     return values if numeric else list(range(len(values)))
@@ -170,7 +170,7 @@ def is_outdoor(scene, x, y, z):
 
 
 def outdoor_mask(scene, rm, z=1.5):
-    # True for the radio-map cells with no building above them (vertical ray cast from above)
+    # True for the radio-map pixels with no building above them (vertical ray cast from above)
     centers = rm.cell_centers.numpy().reshape(-1, 3)
     z_top = float(scene.mi_scene.bbox().max.z) + 10.0
     origins = mi.Point3f(centers[:, 0], centers[:, 1], np.full(len(centers), z_top, dtype=np.float32))
@@ -179,7 +179,7 @@ def outdoor_mask(scene, rm, z=1.5):
 
 
 def show_map(ax, values_db, rm, outdoor, title, transmitters, vmin=-130, vmax=-30):
-    # Top view of a received-power map [dBm]; buildings in grey, cells without signal in white
+    # Top view of a received-power map [dBm]; buildings in grey, pixels without signal in white
     centers = rm.cell_centers.numpy()
     half = (centers[0, 1, 0] - centers[0, 0, 0])/2
     extent = [centers[0, 0, 0] - half, centers[0, -1, 0] + half,
@@ -234,7 +234,7 @@ def plot_coverage(maps, name):
         show_map(ax, m["prx"], m["rm"], m["outdoor"], title, m["tx"])
     if name is not None:
         ax = axes[len(shown)]
-        x = sweep_axis(ax, name, [m["p"][name] for m in maps], "outdoor cells [%]")
+        x = sweep_axis(ax, name, [m["p"][name] for m in maps], "outdoor pixels [%]")
         ax.plot(x, [m["coverage"] for m in maps], "o-", label="covered")
         ax.plot(x, [m["reached"] for m in maps], "s--", label="reached by a ray")
         ax.set(ylim=(0, 100), title=f"Coverage vs {name}")

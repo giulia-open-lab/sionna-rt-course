@@ -6,7 +6,9 @@ Usage, from the root of the public repository:
     python tools/make_student_version.py [SOURCE] [TARGET]
 
 SOURCE defaults to instructor/02_lab_solutions.ipynb (private repository, cloned in
-instructor/) and TARGET to notebooks/02_lab_student.ipynb.
+instructor/) and TARGET to notebooks/02_lab_student.ipynb. For Lab 3:
+
+    python tools/make_student_version.py instructor/03_lab_cities_solutions.ipynb notebooks/03_lab_cities_student.ipynb
 
 Markers used in the solutions notebook (compatible with nbgrader, which only looks for
 "BEGIN SOLUTION" and "END SOLUTION" in a line):
@@ -36,7 +38,7 @@ DEFAULT_TARGET = REPO / "notebooks" / "02_lab_student.ipynb"
 
 COLAB_BADGE = ("[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)]"
                "(https://colab.research.google.com/github/giulia-open-lab/sionna-rt-course/"
-               "blob/main/notebooks/02_lab_student.ipynb)")
+               "blob/main/notebooks/{name})")   # {name}: the file name of the student notebook
 
 # Marker definitions
 CODE_BEGIN = re.compile(r"^(?P<indent>[ \t]*)### BEGIN SOLUTION \[(?P<label>Ex \d+(?:\.\d+)?)\] "
@@ -108,8 +110,9 @@ def to_lines(text):
     return text.splitlines(keepends=True)
 
 
-def make_student_notebook(nb):
+def make_student_notebook(nb, name=DEFAULT_TARGET.name):
     cells, gaps, answers, removed = [], [], 0, 0
+    badge = COLAB_BADGE.format(name=name)
     for index, cell in enumerate(nb["cells"]):
         source, where = cell_source(cell), f"cell {index}"
         new = {"cell_type": cell["cell_type"],
@@ -134,9 +137,9 @@ def make_student_notebook(nb):
         cells.append(new)
 
     if cells and cells[0]["cell_type"] == "markdown":
-        cells[0]["source"] = to_lines(COLAB_BADGE + "\n\n" + "".join(cells[0]["source"]))
+        cells[0]["source"] = to_lines(badge + "\n\n" + "".join(cells[0]["source"]))
     else:
-        cells.insert(0, {"cell_type": "markdown", "metadata": {}, "source": to_lines(COLAB_BADGE)})
+        cells.insert(0, {"cell_type": "markdown", "metadata": {}, "source": to_lines(badge)})
 
     student = {"cells": cells,
                "metadata": {"kernelspec": nb["metadata"].get("kernelspec", {}),
@@ -158,7 +161,7 @@ def main():
     if not args.source.exists():
         sys.exit(f"Source notebook not found: {args.source} (is the instructor repository cloned in instructor/?)")
     nb = json.loads(args.source.read_text(encoding="utf-8"))
-    student, gaps, answers, removed = make_student_notebook(nb)
+    student, gaps, answers, removed = make_student_notebook(nb, args.target.name)
     args.target.parent.mkdir(parents=True, exist_ok=True)
     args.target.write_text(json.dumps(student, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
     print(f"Wrote {args.target}: {len(student['cells'])} cells, {len(gaps)} code gaps "

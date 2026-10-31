@@ -81,10 +81,11 @@ includes the compilation of its kernels):
 |---|---|---|
 | Lecture demo, whole notebook | about 1 min | about 5 min (slowest cell about 50 s) |
 | Lab 2, every experiment once with its default values | about 15 s | about 35 s (slowest cell about 10 s) |
-| Lab 3, every exercise completed (as in the solutions) | about 20 s | about 6.5 min (Exercises 5 and 6 about 2 and 3 min) |
+| Lab 3, every exercise completed (as in the solutions) | about 30 s | about 8.5 min (Exercises 5 and 6 about 2 and 5 min) |
 | Lab 3 reference notebook | a few seconds | about 10 s |
 
-In Lab 2, each further run of an experiment takes from about one second to about 10 s on the CPU. These measurements were made on a workstation. Colab itself (T4 GPU or 2 vCPUs) was not measured
+Lab 3 needs about 4 GB of memory (RAM) on the CPU, mostly for the paths of the 400 receivers of
+Exercises 4 and 6. In Lab 2, each further run of an experiment takes from about one second to about 10 s on the CPU. These measurements were made on a workstation. Colab itself (T4 GPU or 2 vCPUs) was not measured
 and is slower than this workstation, so expect longer times there (see the manual Colab checklist
 below).
 
@@ -107,7 +108,8 @@ below).
   folder of the cloned repository, where the helper files are; on Colab, run the setup cell first
   (it downloads them).
 - **Lab 3 stops with `NotImplementedError: Ex N.M not completed yet`:** expected until you complete
-  that TODO cell; the examples it cites in `03_reference.ipynb` show the syntax to use.
+  that TODO cell; the examples it cites ("ref helpers 1.4": example 1.4 of `03_reference.ipynb`)
+  show the syntax to use.
 - **The log of a lab exercise starts again from run 1:** restarting the kernel clears the logs.
   The logs already printed under the experiment cells stay in the notebook until you run those
   cells again, so do not restart the kernel before saving.

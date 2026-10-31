@@ -1,6 +1,7 @@
-"""Helpers of Lab 3 "Characterizing two cities with ray tracing": the two cities and their small cell,
-the height map, random outdoor receivers, the paths of each receiver, candidate sites and layouts of
-small cells, the 3GPP TR 38.901 UMi model, the plots and the table of results.
+"""Helpers of Lab 3 "Characterizing two cities with ray tracing": the two cities (and Florence for
+Exercise 6) and their small cell, the height map, random outdoor receivers, the paths of each
+receiver, small cells and their channel impulse response (CIR), the 3GPP TR 38.901 UMi model, the
+plots and the table of results.
 
 The notebook imports them with `from lab3_helpers import *` (this file and lab_helpers.py must be
 next to it). The analysis itself is in the cells of the notebook. If you modify this file, restart
@@ -12,20 +13,22 @@ import numpy as np
 import sionna.rt
 from sionna.rt import Camera, PlanarArray, Transmitter, Receiver, load_scene
 
-from lab_helpers import db, watt_to_dbm
+from lab_helpers import db, mechanism, paths_of_rx, watt_to_dbm
 
-__all__ = ["CITIES", "R", "RX_HEIGHT", "TX_HEIGHT", "P_TX_DBM", "THRESHOLD_DBM", "UMI", "db",
-           "watt_to_dbm", "load_city", "building_objects", "materials_of", "height_map",
-           "distance_to", "outdoor_pixels", "add_random_receivers", "add_receivers", "path_arrays",
-           "candidate_sites", "set_small_cells", "best_server", "sir_db", "umi_path_loss",
+__all__ = ["CITIES", "ALL_CITIES", "R", "RX_HEIGHT", "TX_HEIGHT", "P_TX_DBM", "THRESHOLD_DBM",
+           "UMI", "db", "watt_to_dbm", "load_city", "building_objects", "materials_of",
+           "height_map", "distance_to", "outdoor_pixels", "add_random_receivers", "add_receivers",
+           "path_arrays", "set_small_cells", "best_server", "sir_db", "umi_path_loss",
            "umi_los_probability", "city_camera", "show_city", "show_radio_maps",
-           "plot_los_probability", "plot_path_loss", "plot_cdf", "RESULTS", "record",
-           "show_results", "show_studies"]
+           "plot_los_probability", "plot_path_loss", "plot_cdf", "plot_cir",
+           "plot_frequency_response", "RESULTS", "record", "show_results", "show_studies"]
 
 # The two cities: the Sionna scene, the name of its ground object, the site of the small cell (a
 # central open square: the Etoile in Paris, the Marienhof in Munich)
 CITIES = {"Paris": dict(scene="etoile", ground="Plane", site=(-40.0, 20.0)),
           "Munich": dict(scene="munich", ground="ground", site=(39.0, 76.0))}
+# Exercise 6 can also use Florence, the other city of Sionna RT with flat ground (site: an open square)
+ALL_CITIES = {**CITIES, "Florence": dict(scene="florence", ground="ground", site=(30.0, -60.0))}
 R = 250.0              # radius of the studied area around the small cell [m]
 RX_HEIGHT = 1.5        # height of the receivers and of the radio maps [m]
 TX_HEIGHT = 10.0       # height of the small cell [m], below the roofs
@@ -40,7 +43,7 @@ UMI = {"alpha_LoS": 2.1, "alpha_NLoS": 3.53, "sigma_LoS": 4.0, "sigma_NLoS": 7.8
 
 def load_city(city, frequency_ghz=3.5, tx_height=TX_HEIGHT):
     # The city with isotropic vertically polarized antennas and the small cell on its square
-    info = CITIES[city]
+    info = ALL_CITIES[city]
     scene = load_scene(getattr(sionna.rt.scene, info["scene"]), merge_shapes=True)
     scene.frequency = frequency_ghz * 1e9
     scene.tx_array = PlanarArray(num_rows=1, num_cols=1, pattern="iso", polarization="V")
@@ -52,12 +55,12 @@ def load_city(city, frequency_ghz=3.5, tx_height=TX_HEIGHT):
 
 def building_objects(scene, city):
     # The objects of the scene except the ground: walls and roofs of the buildings
-    return [obj for name, obj in scene.objects.items() if name != CITIES[city]["ground"]]
+    return [obj for name, obj in scene.objects.items() if name != ALL_CITIES[city]["ground"]]
 
 
 def materials_of(city):
     # Number of objects of each radio material (walls and roofs are separate objects)
-    scene = load_scene(getattr(sionna.rt.scene, CITIES[city]["scene"]), merge_shapes=False)
+    scene = load_scene(getattr(sionna.rt.scene, ALL_CITIES[city]["scene"]), merge_shapes=False)
     counts = {}
     for obj in scene.objects.values():
         counts[obj.radio_material.name] = counts.get(obj.radio_material.name, 0) + 1
@@ -136,34 +139,38 @@ def path_arrays(paths):
     return np.where(valid, a, 0), np.where(valid, tau, np.nan), valid, los
 
 
-def candidate_sites(scene, center, spacing=40.0, r_max=R):
-    # Candidate sites of small cells: the outdoor points of a square grid of step spacing [m] within
-    # r_max of center, sorted by distance (the first is center itself if it is outdoors). Returns [n, 2].
-    k = spacing * np.arange(-(r_max // spacing), r_max // spacing + 1)
-    X, Y = np.meshgrid(center[0] + k, center[1] + k)
-    X, Y = X.ravel(), Y.ravel()
-    keep = (distance_to(X, Y, center) <= r_max) & _outdoor(scene, X, Y)
-    sites = np.c_[X[keep], Y[keep]]
-    return sites[np.argsort(distance_to(sites[:, 0], sites[:, 1], center), kind="stable")]
+def _roof_height(scene, x, y):
+    # Height [m] of the highest surface at (x, y) seen from above: a roof, or 0 on the ground
+    top = float(scene.mi_scene.bbox().max.z) + 10.0
+    ray = mi.Ray3f(mi.Point3f(float(x), float(y), top), mi.Vector3f(0.0, 0.0, -1.0))
+    t_hit = float(scene.mi_scene.ray_intersect(ray).t.numpy()[0])
+    return max(0.0, top - t_hit) if np.isfinite(t_hit) else 0.0
 
 
-def set_small_cells(scene, sites, power_dbm=P_TX_DBM, height=TX_HEIGHT):
-    # Replace the transmitters of the scene with one small cell per site (x, y): tx0, tx1, ...
+def set_small_cells(scene, positions, powers_dbm=P_TX_DBM):
+    # Replace the transmitters of the scene with one small cell per position, (x, y, z) or (x, y) at
+    # TX_HEIGHT, with its transmit power [dBm] (one value per small cell, or one for all): tx0, tx1, ...
+    powers = np.broadcast_to(np.asarray(powers_dbm, dtype=float), (len(positions),))
     for name in list(scene.transmitters):                # one name at a time: sionna-rt 2.0 accepts no list
         scene.remove(name)
-    for k, (x, y) in enumerate(sites):
-        scene.add(Transmitter(name=f"tx{k}", position=[float(x), float(y), height], power_dbm=power_dbm,
+    for k, (position, power) in enumerate(zip(positions, powers)):
+        x, y, z = position if len(position) == 3 else (*position, TX_HEIGHT)
+        if z < _roof_height(scene, x, y):
+            print(f"Warning: small cell {k + 1} at ({x:g}, {y:g}, {z:g}) m is inside a building")
+        scene.add(Transmitter(name=f"tx{k}", position=[float(x), float(y), float(z)], power_dbm=float(power),
                               display_radius=4.0))
 
 
-def best_server(rm, points):
-    # For each point (x, y): the index of the transmitter of the radio map rm with the strongest power in
-    # the pixel of the point, or -1 where no transmitter reaches that pixel
+def best_server(rm, points, positions):
+    # For each point (x, y): the index of the small cell with the strongest power in the pixel of the
+    # point in the radio map rm; where no small cell reaches that pixel, the nearest small cell
     c = rm.cell_centers.numpy()
     j = np.abs(points[:, 0][:, None] - c[0, :, 0][None, :]).argmin(axis=1)   # column: the nearest x
     i = np.abs(points[:, 1][:, None] - c[:, 0, 1][None, :]).argmin(axis=1)   # row: the nearest y
-    rss = rm.rss.numpy()[:, i, j]                                          # [transmitters, points]
-    return np.where(rss.max(axis=0) > 0, rss.argmax(axis=0), -1)
+    rss = rm.rss.numpy()[:, i, j]                                          # [small cells, points]
+    xy = np.asarray(positions, dtype=float)[:, :2]
+    nearest = np.hypot(points[:, None, 0] - xy[None, :, 0], points[:, None, 1] - xy[None, :, 1]).argmin(axis=1)
+    return np.where(rss.max(axis=0) > 0, rss.argmax(axis=0), nearest)
 
 
 def sir_db(rss):
@@ -196,13 +203,13 @@ def umi_los_probability(d2):
 
 def city_camera(city, height=420.0):
     # A camera above the small cell, looking down at the studied area
-    x, y = CITIES[city]["site"]
+    x, y = ALL_CITIES[city]["site"]
     return Camera(position=[x, y - 330.0, height], look_at=[x, y, 0.0])
 
 
 def show_city(ax, city, xs, ys, heights):
     # Top view of a height map, with the small cell and the circle of radius R
-    x, y = CITIES[city]["site"]
+    x, y = ALL_CITIES[city]["site"]
     im = ax.imshow(np.where(heights > 0, heights, np.nan), origin="lower", cmap="viridis", vmin=0, vmax=40,
                    extent=[xs[0], xs[-1], ys[0], ys[-1]])
     ax.add_patch(plt.Circle((x, y), R, fill=False, color="r", ls="--"))
@@ -223,7 +230,8 @@ def show_radio_maps(maps, title="received power P_R [dBm]", sites=None):
         shown = np.where(mask & np.isfinite(prx), prx, np.nan)
         im = ax.imshow(shown, origin="lower", extent=extent, vmin=-130, vmax=-30, cmap="viridis")
         ax.imshow(np.where(mask, np.nan, 1.0), origin="lower", extent=extent, cmap="Greys", vmin=0, vmax=1.6)
-        for k, (x, y) in enumerate(sites[city] if sites else [CITIES[city]["site"]]):
+        for k, site in enumerate(sites[city] if sites else [ALL_CITIES[city]["site"]]):
+            x, y = site[0], site[1]                    # sites (x, y) or (x, y, z)
             ax.plot(x, y, "r^", ms=9)
             if sites:
                 ax.annotate(str(k + 1), (x, y), xytext=(5, 4), textcoords="offset points", color="r",
@@ -286,6 +294,52 @@ def plot_cdf(samples, xlabel, references=None, ax=None, title=None):
     ax.legend(fontsize=8)
     if show:
         plt.show()
+
+
+
+def plot_cir(ax, paths, power_dbm, k):
+    # CIR from small cell k to the receiver of a scene with one transmitter: the received power of each
+    # path [dBm] at its delay [ns], one colour per mechanism; prints the share of the power of each one
+    a, tau, types = paths_of_rx(paths, 0)
+    if len(a) == 0:
+        print(f"small cell {k + 1}: no path")
+        return
+    kind = np.array([mechanism(t) for t in types])        # "L", "R", "D" or "S" for each path
+    p = np.abs(a) ** 2
+    shares = []
+    names = (("L", "LoS"), ("R", "reflection"), ("D", "diffraction"), ("S", "scattering"))
+    for c, (letter, name) in enumerate(names):
+        sel = kind == letter
+        if sel.any():
+            markers, stems, _ = ax.stem(1e9 * tau[sel], power_dbm + 10 * np.log10(p[sel]), linefmt=f"C{c}-",
+                                        markerfmt=f"C{c}" + "osD^v"[k % 5], basefmt=" ", bottom=-160,
+                                        label=f"small cell {k + 1}: {name}")
+            markers.set_markersize(3)
+            stems.set_linewidth(0.8)
+        shares.append(f"{name} {100 * p[sel].sum() / p.sum():.0f} %")
+    print(f"small cell {k + 1}: {len(a)} paths; share of the power: " + ", ".join(shares))
+    ax.set(xlabel="delay [ns]", ylabel="received power of the path [dBm]", ylim=(-160, None))
+
+
+def plot_frequency_response(ax, paths, power_dbm, k, band_mhz, b_c):
+    # Frequency response from small cell k to the receiver of a scene with one transmitter: the received
+    # power P_T |H(f)|^2 [dBm] over band_mhz around the carrier, with H(f) = sum_i a_i exp(-j 2 pi f tau_i),
+    # the Fourier transform of the CIR; the coherence bandwidth b_c [Hz] as a shaded band
+    a, tau, _ = paths_of_rx(paths, 0)
+    if len(a) == 0:
+        return
+    f = np.linspace(-band_mhz / 2, band_mhz / 2, 1001) * 1e6
+    t = tau - tau.min()
+    h = np.zeros(len(f), dtype=complex)
+    for start in range(0, len(a), 1000):                 # 1000 paths at a time, to save memory
+        h += np.exp(-2j * np.pi * np.outer(f, t[start:start + 1000])) @ a[start:start + 1000]
+    color = f"C{k + 4}"
+    ax.plot(f / 1e6, power_dbm + 10 * np.log10(np.abs(h) ** 2), color=color, lw=1,
+            label=f"small cell {k + 1}: B_C = {b_c / 1e6:.1f} MHz")
+    if np.isfinite(b_c):
+        ax.axvspan(-b_c / 2e6, b_c / 2e6, color=color, alpha=0.15)
+    ax.set(xlabel="frequency from the carrier [MHz]", ylabel="received power P_T |H(f)|^2 [dBm]",
+           xlim=(-band_mhz / 2, band_mhz / 2))
 
 
 RESULTS = {}   # {quantity: {city: value}}: the numbers of the synthesis table

@@ -110,7 +110,7 @@ def reflection_coefficient(theta_i, eta, polarization):
 
 
 def path_loss_exponent(d, pg_db, d_min, d_max):
-    # alpha from a least-squares fit of PG_dB = A - 10 alpha log10(d) over d_min <= d <= d_max
+    # alpha from a least-squares fit of SG_dB = A - 10 alpha log10(d) over d_min <= d <= d_max
     if d_max < 2*d_min:
         return np.nan
     sel = (d >= d_min) & (d <= d_max)
